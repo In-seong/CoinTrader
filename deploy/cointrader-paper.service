@@ -1,0 +1,18 @@
+[Unit]
+Description=CoinTrader paper trading bots (bots.yaml)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/cointrader
+EnvironmentFile=-/opt/cointrader/.env
+# 봇 구성은 /opt/cointrader/bots.yaml 에서 수정 후 systemctl restart cointrader-paper
+ExecStart=/root/.local/bin/uv run cointrader bots
+Restart=always
+RestartSec=30
+StandardOutput=append:/var/log/cointrader.log
+StandardError=append:/var/log/cointrader.log
+
+[Install]
+WantedBy=multi-user.target

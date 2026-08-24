@@ -1,0 +1,2 @@
+# /etc/cron.d/cointrader-report — 매일 09:05 KST 봇 일일 리포트 (텔레그램 설정 시 전송, 항상 로그 기록)
+5 9 * * * root cd /opt/cointrader && /root/.local/bin/uv run cointrader report >> /var/log/cointrader-report.log 2>&1

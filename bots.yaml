@@ -1,0 +1,212 @@
+# 멀티봇 모의투자 설정
+# 실행: uv run cointrader bots            현황: uv run cointrader bots-status
+#
+# 실거래 전환(선발 후): .env 에 UPBIT_ACCESS_KEY/SECRET_KEY 를 넣고, 봇에 `mode: live` 추가.
+#  - 반드시 "새 이름"으로 봇을 만들 것 (예: live_vbp). paper 기록과 섞이면 시작을 거부한다.
+#  - cash 가 그 봇의 실투입 예산(원). live 봇들의 cash 합 ≤ 실계좌 KRW 여야 함.
+#  - 예:
+#    - name: live_vbp
+#      strategy: vb_plus
+#      params: {noise_n: 20, ma_filter: 10, vol_n: 20, hold_ma: 5}
+#      tickers: universe
+#      interval: day
+#      max_positions: 3
+#      cash: 100000
+#      mode: live
+#
+# 봇마다 독립 가상계좌(cash) · 거래기록 · 자산곡선을 가진다.
+# tickers: universe  → 아래 universe 전체를 스캔해 조건 맞는 코인에 진입 (max_positions 한도)
+# tickers: KRW-BTC   → 단일 코인
+
+defaults:
+  interval: minute60      # 일주일 검증엔 60분봉 권장 (day 는 시그널이 거의 안 뜸)
+  cash: 1000000
+  poll: 60                # 초. 모든 봇이 시세를 공유하므로 봇 수와 무관하게 API 호출 일정
+  position_size: 1.0
+
+universe: [KRW-BTC, KRW-ETH, KRW-XRP, KRW-SOL, KRW-DOGE, KRW-ADA]
+
+bots:
+  # ── 1) 전략별 단독 (BTC) ───────────────────────────────────────────
+  - name: solo_vb
+    strategy: volatility_breakout
+    params: {k: 0.7, ma_filter: 5}
+    tickers: KRW-BTC
+
+  - name: solo_ma
+    strategy: ma_cross
+    params: {fast: 5, slow: 20}
+    tickers: KRW-BTC
+
+  - name: solo_rsi
+    strategy: rsi
+    params: {period: 14, buy_below: 30, sell_above: 70}
+    tickers: KRW-BTC
+
+  - name: solo_bb
+    strategy: bollinger
+    params: {period: 20, k: 2.0}
+    tickers: KRW-BTC
+
+  # ── 2) 전략 조합 (BTC) ────────────────────────────────────────────
+  - name: combo_ma_rsi_all        # 둘 다 보유 상태일 때만 보유
+    strategy: ensemble
+    params: {strategies: "ma_cross,rsi", mode: all}
+    tickers: KRW-BTC
+
+  - name: combo_vb_ma_any         # 하나라도 보유면 보유
+    strategy: ensemble
+    params: {strategies: "volatility_breakout,ma_cross", mode: any,
+             sub_params: {volatility_breakout: {k: 0.7, ma_filter: 5}}}
+    tickers: KRW-BTC
+
+  - name: vote_all4               # 4개 중 과반(3개 이상) 보유 시 보유
+    strategy: ensemble
+    params: {strategies: "volatility_breakout,ma_cross,rsi,bollinger", mode: majority}
+    tickers: KRW-BTC
+
+  # ── 3) 멀티코인: 유니버스 스캔, 조건 맞는 코인에 진입 ──────────────
+  - name: multi_vb
+    strategy: volatility_breakout
+    params: {k: 0.7, ma_filter: 5}
+    tickers: universe
+    max_positions: 3
+
+  - name: multi_ma
+    strategy: ma_cross
+    tickers: universe
+    max_positions: 3
+    stop_loss: 0.03
+
+  - name: multi_combo
+    strategy: ensemble
+    params: {strategies: "ma_cross,rsi", mode: any}
+    tickers: universe
+    max_positions: 2
+    stop_loss: 0.03
+    take_profit: 0.08
+
+  # ── 4) 단타 (짧은 봉) — 수수료 0.1%/왕복 대비 어느 간격부터 무너지는지 대조군 ──
+  - name: scalp_vb_5m
+    strategy: volatility_breakout
+    params: {k: 0.7, ma_filter: 5}
+    tickers: KRW-BTC
+    interval: minute5
+
+  - name: scalp_rsi_5m
+    strategy: rsi
+    params: {period: 14, buy_below: 25, sell_above: 75}
+    tickers: KRW-BTC
+    interval: minute5
+    stop_loss: 0.01
+
+  - name: scalp_bb_1m
+    strategy: bollinger
+    params: {period: 20, k: 2.5}
+    tickers: KRW-BTC
+    interval: minute1
+    stop_loss: 0.01
+
+  - name: scalp_ma_15m
+    strategy: ma_cross
+    params: {fast: 7, slow: 25, use_ema: true}
+    tickers: KRW-BTC
+    interval: minute15
+
+  - name: scalp_multi_rsi_10m
+    strategy: rsi
+    params: {period: 14, buy_below: 25, sell_above: 70}
+    tickers: universe
+    interval: minute10
+    max_positions: 3
+    stop_loss: 0.015
+    take_profit: 0.02
+
+  # ── 5) 후보 전략 (2026-08-21 추가) ──────────────────────────────────
+  - name: cand_vb_plus             # 노이즈 k + 추세/거래량 필터 + 5이평 위 보유 연장
+    strategy: vb_plus
+    params: {noise_n: 20, ma_filter: 10, vol_n: 20, hold_ma: 5}
+    tickers: universe
+    interval: day
+    max_positions: 3
+
+  - name: cand_momentum            # 20일 수익률 상위 2개 보유, 전부 약세면 현금, 매일 점검
+    strategy: momentum
+    params: {lookback: 20, top: 2, min_momentum: 0.0}
+    tickers: universe
+    interval: day
+    max_positions: 2
+
+  - name: cand_ma_atr_4h           # 4시간봉 EMA 10/30 + ATR×3 트레일링
+    strategy: ma_atr
+    params: {fast: 10, slow: 30, atr_n: 14, atr_mult: 3.0}
+    tickers: universe
+    interval: minute240
+    max_positions: 3
+
+  # ── 6) 후보 변형 (2026-08-21, 1년 시뮬 결과 기반) ──────────────────
+  # vb_plus: 필터 강도 × 보유 연장 길이
+  - name: vbp_loose                # 추세필터만 약하게, 거래량 필터 없음
+    strategy: vb_plus
+    params: {noise_n: 20, ma_filter: 5, vol_n: 0, hold_ma: 5}
+    tickers: universe
+    interval: day
+    max_positions: 3
+
+  - name: vbp_strict               # 필터 강하게 + 길게 보유
+    strategy: vb_plus
+    params: {noise_n: 20, ma_filter: 20, vol_n: 20, hold_ma: 10}
+    tickers: universe
+    interval: day
+    max_positions: 3
+
+  - name: vbp_nohold               # 필터는 두고 보유 연장 없이 다음 날 시가 청산 (고전 VB)
+    strategy: vb_plus
+    params: {noise_n: 20, ma_filter: 10, vol_n: 20, hold_ma: 0}
+    tickers: universe
+    interval: day
+    max_positions: 3
+
+  - name: vbp_kfixed               # 노이즈 k 대신 고정 k=0.5
+    strategy: vb_plus
+    params: {k_fixed: 0.5, ma_filter: 10, vol_n: 0, hold_ma: 5}
+    tickers: universe
+    interval: day
+    max_positions: 3
+
+  - name: vbp_4h                   # 같은 로직을 4시간봉에
+    strategy: vb_plus
+    params: {noise_n: 30, ma_filter: 12, vol_n: 30, hold_ma: 6}
+    tickers: universe
+    interval: minute240
+    max_positions: 3
+
+  # momentum: 약세장 현금 전환 강화
+  - name: mom_strict               # 20일 수익률 +5% 이상만, 상위 2개
+    strategy: momentum
+    params: {lookback: 20, top: 2, min_momentum: 0.05}
+    tickers: universe
+    interval: day
+    max_positions: 2
+
+  - name: mom_long                 # 60일 모멘텀, 1개 집중, 20일 이평 위일 때만
+    strategy: momentum
+    params: {lookback: 60, top: 1, min_momentum: 0.03, ma_filter: 20}
+    tickers: universe
+    interval: day
+    max_positions: 1
+
+  # ma_atr: 봉 간격/스탑 폭
+  - name: ma_atr_day
+    strategy: ma_atr
+    params: {fast: 10, slow: 30, atr_n: 14, atr_mult: 3.0}
+    tickers: universe
+    interval: day
+    max_positions: 3
+
+  - name: ma_atr_4h_tight
+    strategy: ma_atr
+    params: {fast: 8, slow: 21, atr_n: 14, atr_mult: 2.0}
+    tickers: universe
+    interval: minute240
+    max_positions: 3

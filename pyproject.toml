@@ -1,0 +1,35 @@
+[project]
+name = "cointrader"
+version = "0.1.0"
+description = "Upbit crypto auto-trading bot with pluggable strategies and backtesting"
+requires-python = ">=3.13"
+dependencies = [
+    "pyupbit>=0.2.33",
+    "pandas>=2.2",
+    "numpy>=2.0",
+    "pyarrow>=17.0",
+    "typer>=0.12",
+    "rich>=13.0",
+    "pydantic-settings>=2.4",
+    "requests>=2.32",
+    "matplotlib>=3.9",
+    "pyyaml>=6.0.3",
+    "fastapi>=0.141.1",
+    "uvicorn[standard]>=0.52.4",
+]
+
+[project.scripts]
+cointrader = "cointrader.cli:app"
+
+[dependency-groups]
+dev = ["pytest>=8.0"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["cointrader"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

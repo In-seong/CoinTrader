@@ -1,0 +1,17 @@
+[Unit]
+Description=CoinTrader paper trading dashboard (127.0.0.1:4300)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/cointrader
+EnvironmentFile=-/opt/cointrader/.env
+ExecStart=/root/.local/bin/uv run uvicorn cointrader.web.app:app --host 127.0.0.1 --port 4300 --log-level warning
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/cointrader-web.log
+StandardError=append:/var/log/cointrader-web.log
+
+[Install]
+WantedBy=multi-user.target
